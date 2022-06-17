@@ -1,9 +1,22 @@
+# Algorítimo RNA - Novos resultados com outros perfis de corrente
+# Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+# Este algoritmo é de autoria do aluno Fábio Mori
+###############################################################################
+# Este algoritmo teve como base de desenvolvimento teve como base o 
+# conhecimento adiquirido durante a realização das matérias:
+# MITx - 6.00.1x
+# Introduction to Computer Science and Programming Using Python
+# MITx - 6.86x
+# Machine Learning with Python-From Linear Models to Deep Learning
+# IBM - DL0120EN
+# Deep Learning with Tensorflow
+# Todas estas matérias foram feitas pela plataforma edX
+###############################################################################
 # Rede Neural Artificial para estimar o SOC
 # Baseado nos dados simulados em laboratório da célula A123
-# Perfil de corrente UDDS
+# Este código implementa a ede neural artificial profunda
 # Dados de entrada: SOC estimado pelo SPKF e KPI dos dados UDDS
-# Autor: Fábio de Souza Moraes Mori
-#Código principal: Estimar o SOC
+# Dado de saída: SOC estimado pela RNA
 
 import _pickle as cPickle, gzip
 import numpy as np
@@ -122,7 +135,7 @@ def main():
     model = nn.Sequential(
                nn.Linear(5, 100),
                nn.Hardtanh(),      
-               nn.Linear(100, 100),     #hidden layer 1
+               nn.Linear(100, 100),     # camada oculta 1
                nn.Hardtanh(),      
                nn.Linear(100, 1),
             )
@@ -159,7 +172,7 @@ def main():
     #plt.plot(range(len(test)), sochat, 'b', label='ANN SOC Estimator')
     plt.plot(range(len(sochat)), sochat, 'b', label='ANN SOC Estimator')
     #plt.plot(range(len(test)), X_test[:,0], 'g', label='SPKF SOC Estimator')
-   # plt.plot(range(len(y_test)), X_test[:,0], 'g', label='SPKF SOC Estimator')
+    #plt.plot(range(len(y_test)), X_test[:,0], 'g', label='SPKF SOC Estimator')
     
     plt.title('Neural Networks Output')
     plt.ylabel('SOC')
@@ -174,7 +187,7 @@ def main():
 ############################################################################## 
     
 if __name__ == '__main__':
-    # Specify seed for deterministic behavior, then shuffle. Do not change seed for official submissions to edx
-    np.random.seed(12321)  # for reproducibility
-    torch.manual_seed(12321)  # for reproducibility
+    # Especifique o "seed" para o comportamento determinístico e, em seguida, embaralhe.
+    np.random.seed(12321)  # para reprodutibilidade
+    torch.manual_seed(12321)  # para reprodutibilidade
     main()

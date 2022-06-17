@@ -1,8 +1,23 @@
+# Algorítimo RNA
+# Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+###############################################################################
+# Este algoritmo teve como base de desenvolvimento teve como base o 
+# conhecimento adiquirido durante a realização da matéria:
+# MITx - 6.86x
+# Machine Learning with Python-From Linear Models to Deep Learning
+# Essa matéria foi feita pela plataforma edX
+###############################################################################
+# A base do algoritmo util
+# Rede Neural Artificial para estimar o SOC
+# Baseado nos dados simulados em laboratório da célula A123
+# Este código contém funções auxiliares utilizadas pelo "SOC.py"
+# Dados de entrada: SOC estimado pelo SPKF e KPI dos dados UDDS
+# Dado de saída: SOC estimado pela RNA
+
 import pickle, gzip, numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import math
-
 
 def plot_images(X):
     if X.ndim == 1:
@@ -17,7 +32,6 @@ def plot_images(X):
         plt.axis('off')
     plt.show()
 
-
 def pick_examples_of(X, Y, labels, total_count):
     bool_arr = None
     for label in labels:
@@ -29,7 +43,6 @@ def pick_examples_of(X, Y, labels, total_count):
     filtered_x = X[bool_arr]
     filtered_y = Y[bool_arr]
     return (filtered_x[:total_count], filtered_y[:total_count])
-
 
 def extract_training_and_test_examples_with_labels(train_x, train_y, test_x, test_y, labels, training_count, test_count):
     filtered_train_x, filtered_train_y = pick_examples_of(train_x, train_y, labels, training_count)
@@ -46,25 +59,6 @@ def read_pickle_data(file_name):
     data = pickle.load(f, encoding='latin1')
     f.close()
     return data
-
-def get_MNIST_data():
-    """
-    Reads mnist dataset from file
-
-    Returns:
-        train_x - 2D Numpy array (n, d) where each row is an image
-        train_y - 1D Numpy array (n, ) where each row is a label
-        test_x  - 2D Numpy array (n, d) where each row is an image
-        test_y  - 1D Numpy array (n, ) where each row is a label
-
-    """
-    train_set, valid_set, test_set = read_pickle_data('../Datasets/mnist.pkl.gz')
-    train_x, train_y = train_set
-    valid_x, valid_y = valid_set
-    train_x = np.vstack((train_x, valid_x))
-    train_y = np.append(train_y, valid_y)
-    test_x, test_y = test_set
-    return (train_x, train_y, test_x, test_y)
 
 def load_train_and_test_pickle(file_name):
     train_x, train_y, test_x, test_y = read_pickle_data(file_name)

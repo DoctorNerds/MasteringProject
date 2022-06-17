@@ -1,9 +1,18 @@
+# Algorítimo RNA - Novos resultados com outros perfis de corrente
+# Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+# O algoritmo foi adaptado pelo aluno Fábio Mori
+###############################################################################
+# Este algoritmo teve como base de desenvolvimento teve como base o 
+# conhecimento adiquirido durante a realização da matéria:
+# MITx - 6.86x
+# Machine Learning with Python-From Linear Models to Deep Learning
+# Essa matéria foi feita pela plataforma edX
+###############################################################################
 # Rede Neural Artificial para estimar o SOC
 # Baseado nos dados simulados em laboratório da célula A123
-# Perfil de corrente UDDS
+# Este código contém funções auxiliares utilizadas pelo "SOC.py"
 # Dados de entrada: SOC estimado pelo SPKF e KPI dos dados UDDS
-# Autor: Fábio de Souza Moraes Mori
-#Código auxiliar: Funções
+# Dado de saída: SOC estimado pela RNA
 
 from tqdm import tqdm
 import numpy as np

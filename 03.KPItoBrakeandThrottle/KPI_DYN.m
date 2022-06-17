@@ -1,47 +1,61 @@
-%Load A123 DYN Data
+% Algorítimo KPI
+%
+% Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+% O algoritmo é de autoria do aluno Fábio Mori
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% -------------------------------------------------------------------------
+% Este algoritmo chama todas as funções definidas para separar os sinhas de
+% brake e throttle do sinal de corrente UUDS de teste dinâmico da bateria
+% em laboratório e posteriormente as funções que retornar os KPIs de
+% agressividade e liberação do freio e também do acelerador
+
+% Definição da função
+
+% Carregar aquivo A123 DYN com a temperatura selecionada
 % load('A123_DYN_50_P25.mat', 'DYNData') % 25°C
-% load('A123_DYN_50_P35.mat', 'DYNData') % 35°C
+load('A123_DYN_50_P35.mat', 'DYNData') % 35°C
 % load('A123_DYN_50_P45.mat', 'DYNData') % 45°C
 % load('A123_DYN_45_P15.mat', 'DYNData') % 15°C
- load('A123_DYN_45_P05.mat', 'DYNData') % 05°C
+% load('A123_DYN_45_P05.mat', 'DYNData') % 05°C 
 
 teste = DYNData.script1;
 
-%Initial Conditions
-T = 25; %Change to whatever temperature is of interest to you
+% Condições iniciais
+T = 25; % Mude para qualquer temperatura que for do seu interesse
 k = 0;
 
-%Variables
-time = teste.time; %Time
-current = teste.current; %Current 
+%Variáveis
+time = teste.time; % tempo
+current = teste.current; % corrente
 
-%Initialize variables with true length
-interations = length(time);
-throttle = zeros(1,interations);
-brake = zeros(1,interations);
+% Inicializa as variáveis com o tamanho real do sinal UDDS
+interations = length(time);  % variável para armazenar o número de amostras
+throttle = zeros(1,interations); % variável para armazenar o sinal throttle
+brake = zeros(1,interations);    % variável para armazenar o sinal brake
 
-%Functions to calculate KPI
-%Separete Throttle signal and Brake signal
+% Funções para calcular os KPIs
+% Separando os sinais de Throttle e Brake 
 [throttle, brake] = signals(current,throttle,brake,interations,k);
 
-%Brake KPI Functions
-%Steps to generate KPIs Brake Aggression and Brake Release
+% Funções para KPI de freio
+% Passos para gerar os KPIs agressividade de freio e liberação de freio
 [brake_speed] = bspeed(brake); 
 [brake_aggression] = baggression(brake,brake_speed,interations,k);
 [brake_release] = brelease(brake,brake_speed,interations,k);
 [brake_aggression_kpi_mean, brake_aggression_kpi] = bmeanaggression(brake_aggression,interations,k);
 [brake_release_kpi, brake_release_kpi_mean] = bmeanrelease(brake_release,interations,k);
 
-%Throttle KPI Functions 
-%Steps to generate KPIs Throttle Aggression and Throttle Release
+% Funções para KPI de acelerador 
+% Passos para gerar os KPIs agressividade do acelerador e liberação do
+% acelerador
 [throttle_speed] = tspeed(throttle);
 [throttle_aggression] = taggression(throttle,throttle_speed,interations,k);
 [throttle_release] = trelease(throttle,throttle_speed,interations,k);
 [throttle_aggression_kpi_mean, throttle_aggression_kpi] = tmeanaggression(throttle_aggression,interations,k);
 [throttle_release_kpi, throttle_release_kpi_mean] = tmeanrelease(throttle_release,interations,k);
 
-%Plot KPI Graphics
-figure(01); %UDDS Current Signal
+% Plotando os gráficos de corrente de descarga e recarga da bateria
+figure(01); % Sinal de corrente UDDS
 subplot(1,2,1)
 plot(time, current)
 %title('Current Signal UDDS Dynamic ')
@@ -52,7 +66,7 @@ ylabel('Sinal de Corrente UDDS (A)')
 %ylabel('Current UDDS Signal') 
 legend({'Sinal UDDS'},'Location','southwest')
 
-subplot(1,2,2) %Extract Throttle and Brake Signal
+subplot(1,2,2) % Sinal de freio e acelerador extraídos do sinal UDDS
 plot(time, throttle)
 %title('Throttle and Brake')
 title('Acelerador e Freio')
@@ -66,10 +80,10 @@ plot(time, brake)
 legend({'Acelerador','Freio'},'Location','southwest')
 hold off
 
-%Plot Brake Graphics
+% Plotando os gráficos de freio
 figure(02); 
 
-subplot(2,2,1) %Brake Speed
+subplot(2,2,1) % Derivada do sinal de freio, "velocidade do freio"
 plot(time, brake)
 %title('Brake and Brake Speed')
 title('Freio e Velocidade do Freio')
@@ -83,7 +97,7 @@ plot(time, brake_speed)
 legend({'Freio','Velocidade do Freio'},'Location','southwest')
 hold off
 
-subplot(2,2,2) %Brake Aggression
+subplot(2,2,2) % Agressividade de freio
 plot(time, brake)
 %title('Brake and Brake Aggression')
 title('Freio e Agressividade do Freio')
@@ -97,7 +111,7 @@ plot(time, brake_aggression)
 legend({'Freio','Agressividade do freio'},'Location','southwest')
 hold off
 
-subplot(2,2,3) %Brake Release
+subplot(2,2,3) % Liberação de freio
 plot(time, brake)
 %title('Brake and Brake Release')
 title('Freio e Liberação do Freio')
@@ -111,7 +125,7 @@ plot(time, brake_release)
 legend({'Freio','Liberação do Freio'},'Location','southwest')
 hold off
 
-subplot(2,2,4) %KPI Brake Agression and Brake Release
+subplot(2,2,4) % KPIs de agressividade e liberação de freio
 plot(time, brake_aggression_kpi_mean)
 %title('KPI - Brake Aggression (Mean) and Brake Release (Mean)')
 title('KPI - Agressividade do Freio e Liberação do Freio')
@@ -125,11 +139,10 @@ plot(time, brake_release_kpi_mean)
 legend({'KPI - Agressividade do Freio','KPI - Liberação do Freio'},'Location','southwest')
 hold off
 
-
-%Plot Throttle Graphics 
+% Plotando os gráficos do acelerador 
 figure(03); 
 
-subplot(2,2,1) %Throttle Speed
+subplot(2,2,1) % Derivada do sinal do acelerador, "velocidade do acelerador"
 plot(time, throttle)
 %title('Throttle and Throttle Speed')
 title('Acelerador e Velocidade do Acelerador')
@@ -143,7 +156,7 @@ plot(time, throttle_speed)
 legend({'Acelerador','Velocidade do Acelerador'},'Location','southwest')
 hold off
 
-subplot(2,2,2) %Throttle Aggression
+subplot(2,2,2) % Agressividade do acelerador
 plot(time, throttle)
 %title('Throttle and Throttle Aggression')
 title('Acelerador e Agressividade do Acelerador')
@@ -157,7 +170,7 @@ plot(time, throttle_aggression)
 legend({'Acelerador','Agressividade do Acelerador'},'Location','southwest')
 hold off
 
-subplot(2,2,3) %Throttle Release
+subplot(2,2,3) % Liberação do acelerador
 plot(time, throttle)
 %title('Throttle and Throttle Release')
 title('Acelerador e Liberação do Acelerador')
@@ -171,7 +184,7 @@ plot(time, throttle_release)
 legend({'Acelerador','Liberação do Acelerador'},'Location','southwest')
 hold off
 
-subplot(2,2,4) %KPI Throttle Agression and Throttle Release
+subplot(2,2,4) % KPIs de agressividade e liberação do acelerador
 plot(time, throttle_aggression_kpi_mean)
 %title('KPI - Throttle Aggression (Mean) and Throttle Release (Mean)')
 title('KPI - Agressividade do Acelerador e Liberação do Acelerador')

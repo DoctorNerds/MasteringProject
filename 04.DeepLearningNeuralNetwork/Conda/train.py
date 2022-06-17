@@ -1,9 +1,18 @@
+# Algorítimo RNA
+# Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+# O algoritmo foi adaptado pelo aluno Fábio Mori
+###############################################################################
+# Este algoritmo teve como base de desenvolvimento teve como base o 
+# conhecimento adiquirido durante a realização da matéria:
+# MITx - 6.86x
+# Machine Learning with Python-From Linear Models to Deep Learning
+# Essa matéria foi feita pela plataforma edX
+###############################################################################
 # Rede Neural Artificial para estimar o SOC
 # Baseado nos dados simulados em laboratório da célula A123
-# Perfil de corrente UDDS
+# Este código contém funções auxiliares utilizadas pelo "SOC.py"
 # Dados de entrada: SOC estimado pelo SPKF e KPI dos dados UDDS
-# Autor: Fábio de Souza Moraes Mori
-#Código auxiliar: Funções
+# Dado de saída: SOC estimado pela RNA
 
 from tqdm import tqdm
 import numpy as np
@@ -58,7 +67,6 @@ def compute_SOC_accuracy(predictions, y):
             i = i+1
     return np.mean(accepty)
 
-# Procedimento de Treinamento
 def train_model(train_data, val_data, model, lr=0.01, momentum=0.9, nesterov=False, n_epochs=30):
     " Treinar o modelo por N épocas com os dados e os hiper parâmetros "
     # Utilizando o otimizador Stochastic Gradient Descent
@@ -140,4 +148,4 @@ def spkf_parameters(data, y):
     avg_loss_spkf = np.mean(losses_spkf)
     avg_accuracy_spkf = np.mean(batch_accuracies_spkf)
     
-    return avg_loss_spkf, avg_accuracy_spkf, losses_spkf 
+    return avg_loss_spkf, avg_accuracy_spkf, losses_spkf

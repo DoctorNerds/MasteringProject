@@ -1,71 +1,77 @@
-% --------------------------------------------------------------------
-% script runProcessDynamic
+% Algorítimo DYN
 %
-% RUNPROCESSDYNAMIC reads data files corresponding to dynamic cell 
-% tests, executes PROCESSDYNAMIC, and then saves the resulting 
-% ESC model.  It relies on SETUPDYNDATA to provide a list of data files
-% to be processed.
-
+% Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+% O algoritmo aplicado neste projeto está protegido por direitos autorais
+% de Gregory L. Plett:
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Copyright (c) 2015 by Gregory L. Plett of the University of Colorado 
 % Colorado Springs (UCCS). This work is licensed under a Creative Commons 
 % Attribution-NonCommercial-ShareAlike 4.0 Intl. License, v. 1.0.
 % It is provided "as is", without express or implied warranty, for 
 % educational and informational purposes only.
-%
 % This file is provided as a supplement to: Plett, Gregory L., "Battery
 % Management Systems, Volume I, Battery Modeling," Artech House, 2015.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% -------------------------------------------------------------------------
+% script runProcessDynamic
+%
+% RUNPROCESSDYNAMIC: lê os arquivos de dados correspondentes aos testes
+% dinêmicos da célula, executa PROCESSDYNAMIC e então salva o resultado
+% do modelo ESC. Ele se baseia no SETUPDYNDATA para fornecer a lista de 
+% dados a ser processados
+
 
 close all
-setupDynData; % get list of files to be processed
-numpoles = 1; % number of resistor--capacitor pairs in final model
+setupDynData; % obtém a lista de dados a serem processados
+numpoles = 1; % número de pares R-C no modelo final
 
-for indID = 1:length(cellIDs), % process each cell type
-  cellID = cellIDs{indID};     % get cell identifier
+for indID = 1:length(cellIDs), % Loop varrendo todos os tipos de célula (nesta aplicação só temos A123)
+  cellID = cellIDs{indID};     % obtém a célula identidicada
   
-  % Read model OCV file, previously computed by runProcessOCV
+  % Leia o arquivo OCV, previamente processado pelo runProcessOCV
   modelFile = sprintf('../OCV/%smodel-ocv.mat',cellID);
   if ~exist(modelFile,'file'),
     error(['File "%s" not found.\n' ...
       'Please change folders so that "%s" points to a valid model '...
-      'file and re-run runProcessDynamic.'],modelFile,modelFile); %#ok<SPERR>
+      'file and re-run runProcessDynamic.'],modelFile,modelFile); 
   end
   load(modelFile);
   
-  % Read MAT raw data files
+  % Leia o arquivo de dados MAT
   data = zeros([0 length(mags{indID} > 0)]); dataInd = 0;
-  for indTemps = 1:length(mags{indID}), % read all temperatures
-    theMag = mags{indID}(indTemps);     % max C-rate in data file * 10
-    if theMag < 0,                      % omit these data files
+  for indTemps = 1:length(mags{indID}), % leia todas as temperaturas
+    theMag = mags{indID}(indTemps);     % máxima taxa-C no arquivo de dados * 10
+    if theMag < 0,                      % omita esses arquivos de dados
       continue 
-    else                                % store this data in "data"
+    else                                % armazene estes dados em "data"
       dataInd = dataInd + 1;
     end
-    if temps(indTemps) < 0, % if temperature is negative, then load this
-      DYNPrefix = sprintf('%s_DYN/%s_DYN_%02d_N%02d',... % data file
+    if temps(indTemps) < 0, % se a temperatura for negativa, então
+      DYNPrefix = sprintf('%s_DYN/%s_DYN_%02d_N%02d',... % nomenclatura para temperaturas negativas
         cellID,cellID,theMag,abs(temps(indTemps)));
-    else                    % if temperature is positive, then load this
-      DYNPrefix = sprintf('%s_DYN/%s_DYN_%02d_P%02d',... % data file
+    else                    % se a temperatura for positiva, então
+      DYNPrefix = sprintf('%s_DYN/%s_DYN_%02d_P%02d',... % nomenclatura para temperaturas positivas
         cellID,cellID,theMag,temps(indTemps));
     end
     inFile = sprintf('%s.mat',DYNPrefix);
     if ~exist(inFile,'file'),
       error(['File "%s" not found.\n' ...
         'Please change folders so that "%s" points to a valid data '...
-        'file and re-run runProcessDynamic.'],inFile,inFile); %#ok<SPERR>
+        'file and re-run runProcessDynamic.'],inFile,inFile); 
     end
     fprintf('Loading %s\n',inFile); load(inFile);        
-    data(dataInd).temp    = temps(indTemps); % store temperature
-    data(dataInd).script1 = DYNData.script1; % store data from each of the
-    data(dataInd).script2 = DYNData.script2; % three scripts
+    data(dataInd).temp    = temps(indTemps); % armazena temperatura
+    data(dataInd).script1 = DYNData.script1; % armazena os dados de cada
+    data(dataInd).script2 = DYNData.script2; % um dos três scripts
     data(dataInd).script3 = DYNData.script3;
   end
   
-  model = processDynamic(data,model,numpoles,1); % does the "heavy lifting"
-  modelFile = sprintf('%smodel.mat',cellID); % save optimized model in this
-  save(modelFile,'model');                   % file
+  model = processDynamic(data,model,numpoles,1); % faz o "heavy lifting"
+  modelFile = sprintf('%smodel.mat',cellID); % salva o modelo otimizado
+  save(modelFile,'model');                   % neste arquivo
   
-  % Plot model-match voltage results at 25 degC, plus RMS voltage-estimation 
-  % error between 5% and 95% cell state of charge
+  % Plota os resultados de tensão do modelo à 25°C, mais o erro RMS de 
+  % estimação de tensão entre 5% e 95% de SOC da célula
   figure(10+indID);
   indTemps = find(temps == 25);
   [vk,rck,hk,zk,sik,OCV] = simCell(data(indTemps).script1.current,...

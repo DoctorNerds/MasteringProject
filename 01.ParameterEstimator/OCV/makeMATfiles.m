@@ -1,65 +1,73 @@
-% makeMATfiles:
-% This utility script loads the Excel files produced by the Arbin cell 
-% tester and converts them to MATLAB ".mat" files for easier access.
-
+% Algorítimo OCV
+%
+% Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+% O algoritmo aplicado neste projeto está protegido por direitos autorais
+% de Gregory L. Plett:
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Copyright (c) 2015 by Gregory L. Plett of the University of Colorado 
 % Colorado Springs (UCCS). This work is licensed under a Creative Commons 
 % Attribution-NonCommercial-ShareAlike 4.0 Intl. License, v. 1.0.
 % It is provided "as is", without express or implied warranty, for 
 % educational and informational purposes only.
-%
 % This file is provided as a supplement to: Plett, Gregory L., "Battery
 % Management Systems, Volume I, Battery Modeling," Artech House, 2015.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-cellIDs = {'A123'}; % Identifiers for each cell
-order = [-25 -15 -5 5 15 25 35 45];             % Temperatures for each 
+% makeMATfiles:
+% O objetivo deste script é transformar os dados do Excel da célula A123
+% escolhida e transformá-los em arquivos ".mat" para facilitar sua
+% utilização
+clear all; close all 
 
-% Column headers to look for and convert to ".mat" file
+cellIDs = {'A123'}; % Identificação da célula A123
+order = [-25 -15 -5 5 15 25 35 45]; % Temperaturas de cada teste
+
+% Cabeçalhos de coluna do Excel para procurar e converter para ".mat"
 headers = {'Test_Time(s)','Step_Index','Current(A)','Voltage(V)',...
            'Charge_Capacity(Ah)','Discharge_Capacity(Ah)'};
-% Corresponding MATLAB structure field names to use         
+% Cabeçalhos de coluna MATLAB correspondentes do arquivo Excel         
 fields  = {'time','step','current','voltage','chgAh','disAh'};
-% Field names to use for the four different testing scripts
+% Nomes para os quatro scripts de teste diferentes
 stepFields = {'script1','script2','script3','script4'};
 
-for theID = 1:length(cellIDs),    % loop over all cell types
-  data = [];                      % clear data structure and start fresh
-  for theFile = 1:length(order),  % loop over all temperatures
-    dirname = cellIDs{theID};     % folder name in which to look for data
-    ind = find(dirname == '_');   % if there is a "_", delete it
+for theID = 1:length(cellIDs),    % Loop varrendo todos os topos de célula (nesta aplicação só temos A123)
+  data = [];                      % Inicializa a variável de dados vazia
+  for theFile = 1:length(order),  % Loop varrendo todas as temperaturas (-25, -15, -5, 5, 15, 25, 35, 45)
+    dirname = cellIDs{theID};     % nome da pasta que vamos procurar os dados
+    ind = find(dirname == '_');   % lógica para se houver um "_", excluir
     if ~isempty(ind), dirname = dirname(1:ind-1); end
-    if order(theFile) < 0,        % if temperature is negative, then
-      OCVPrefix = sprintf('%s_OCV/%s_OCV_N%02d',... % look for this file
+    if order(theFile) < 0,        % se a temperatura for negativa, então
+      OCVPrefix = sprintf('%s_OCV/%s_OCV_N%02d',... % procure por este arquivo (nomenclatura para temperaturas negativas)
         dirname,cellIDs{theID},abs(order(theFile)));
-    else                          % if temperature is positive, then
-      OCVPrefix = sprintf('%s_OCV/%s_OCV_P%02d',... % look for this file
+    else                          % se a temperatura for positiva, então
+      OCVPrefix = sprintf('%s_OCV/%s_OCV_P%02d',... % procure por este arquivo (nomenclatura para temperaturas positivas)
         dirname,cellIDs{theID},order(theFile));
     end
 
-    for theScript = 1:4,          % process data from all four scripts
-      OCVData = [];               % clear structure and start fresh
-      for theField = 1:length(fields), % initialize empty fields
+    for theScript = 1:4,          % processa os dados para todos os 4 scripts
+      OCVData = [];               % Inicializa a variável de dados OCV vazia
+      for theField = 1:length(fields), % inicializa os campos vazios
         OCVData.(fields{theField}) = [];
         chargeData.(fields{theField}) = [];
       end
 
-      OCVFile = sprintf('%s_S%d.xlsx',OCVPrefix,theScript); % file name
-      [~,sheets] = xlsfinfo(OCVFile);   % get names of sheets in file
-      fprintf('Reading %s\n',OCVFile);  % status update for the impatient
-      for theSheet = 1:length(sheets),  % loop over all sheets
-        if strcmp(sheets{theSheet},'Info'), continue; end % ignore "Info"
-        fprintf('  Processing sheet %s\n',sheets{theSheet}); % status
-        [num,txt,raw] = xlsread(OCVFile,sheets{theSheet}); % read data
-        for theHeader = 1:length(headers), % parse out data that we care 
-          ind = strcmp(txt,headers{theHeader}); % about
+      OCVFile = sprintf('%s_S%d.xlsx',OCVPrefix,theScript); % cria o nome do arquivo
+      [~,sheets] = xlsfinfo(OCVFile);   % obtém os nomes das planilhas no arquivo
+      fprintf('Reading %s\n',OCVFile);  % mensagem na tela enquanto o processo é realizado
+      for theSheet = 1:length(sheets),  % loop varrendo todas as planilhas
+        if strcmp(sheets{theSheet},'Info'), continue; end % ignora "Info"
+        fprintf('  Processing sheet %s\n',sheets{theSheet}); % status exibido na tela
+        [num,txt,raw] = xlsread(OCVFile,sheets{theSheet}); % lendo o arquivo de dados
+        for theHeader = 1:length(headers), % analisar dados que nos importam neste trabalho
+          ind = strcmp(txt,headers{theHeader}); % sobre
           OCVData.(fields{theHeader}) = [OCVData.(fields{theHeader});
             num(:,ind == 1)];
         end
       end
-      data.(stepFields{theScript}) = OCVData; % save in structure
+      data.(stepFields{theScript}) = OCVData; % salva na estrutura
     end
-    outFile = sprintf('%s.mat',OCVPrefix); % create output filename
+    outFile = sprintf('%s.mat',OCVPrefix); % cria o arquivo ".mat"
     OCVData = data;
-    save(outFile,'OCVData');               % save output file
+    save(outFile,'OCVData');               % salva o arquivo ".mat"
   end
 end

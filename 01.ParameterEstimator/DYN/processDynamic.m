@@ -1,73 +1,80 @@
-% --------------------------------------------------------------------
-% function processDynamic
+% Algorítimo DYN
 %
-% Technical note: PROCESSDYNAMIC assumes that specific Arbin test 
-% scripts have been executed to generate the input files. 
-% "makeMATfiles.m" converts the raw Excel data files into "MAT" format
-% where the MAT files have fields for time, step, current, voltage, 
-% chgAh, and disAh for each script run.
-%
-% The results from three scripts are required at every temperature.  
-% The steps in each script file are assumed to be:
-%   Script 1 (thermal chamber set to test temperature):
-%     Step 1: Rest @ 100% SOC to acclimatize to test temperature
-%     Step 2: Discharge @ 1C to reach ca. 90% SOC
-%     Step 3: Repeatedly execute dynamic profiles (and possibly
-%             intermediate rests) until SOC is around 10%
-%   Script 2 (thermal chamber set to 25 degC):
-%     Step 1: Rest ca. 10% SOC to acclimatize to 25 degC
-%     Step 2: Discharge to min voltage (ca. C/3)
-%     Step 3: Rest
-%     Step 4: Constant voltage at vmin until current small (ca. C/30)
-%     Steps 5-7: Dither around vmin
-%     Step 8: Rest
-%   Script 3 (thermal chamber set to 25 degC):
-%     Step 2: Charge @ 1C to max voltage
-%     Step 3: Rest
-%     Step 4: Constant voltage at vmax until current small (ca. C/30)
-%     Steps 5-7: Dither around vmax
-%     Step 8: Rest
-% 
-% All other steps (if present) are ignored by PROCESSDYNAMIC. The time 
-% step between data samples must be uniform -- we assume a 1s sample
-% period in this code
-%
-% The inputs:
-% - data: An array, with one entry per temperature to be processed. 
-%         One of the array entries must be at 25 degC. The fields of 
-%         "data" are: temp (the test temperature), script1, 
-%         script 2, and script 3, where the latter comprise data 
-%         collected from each script.  The sub-fields of these script 
-%         structures that are used by PROCESSDYNAMIC are the vectors: 
-%         current, voltage, chgAh, and disAh
-% - model: The output from processOCV, comprising the OCV model
-% - numpoles: The number of R-C pairs in the model
-% - doHyst: 0 if no hysteresis model desired; 1 if hysteresis desired
-%
-% The output:
-% - model: A modified model, which now contains the dynamic fields
-%         filled in.
-
+% Este arquivo foi utilizado no projeto de mestrado do aluno Fábio Mori.
+% O algoritmo aplicado neste projeto está protegido por direitos autorais
+% de Gregory L. Plett:
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Copyright (c) 2015 by Gregory L. Plett of the University of Colorado 
 % Colorado Springs (UCCS). This work is licensed under a Creative Commons 
 % Attribution-NonCommercial-ShareAlike 4.0 Intl. License, v. 1.0.
 % It is provided "as is", without express or implied warranty, for 
 % educational and informational purposes only.
-%
 % This file is provided as a supplement to: Plett, Gregory L., "Battery
 % Management Systems, Volume I, Battery Modeling," Artech House, 2015.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% --------------------------------------------------------------------
+% função processDynamic
+%
+% Nota técninca: PROCESSDYNAMIC assume que os testes com a bateria A123 
+% já foram executados para gerar os dados de entrada. 
+% "makeMATfiles.m" converte o arquivo de dados do Excel para o formato "MAT" 
+% os arquivos MATtem os campos de time, step, current, voltage, 
+% chgAh, e disAh para cada run do script.
+%
+% Os resultados destes scripts são necessários para cada temperatura.  
+% A seguir as etapas de cada um dos 3 scripts do teste DYN:
+%   Script 1 (câmara térmica ajustada para temperatura de teste):
+%     Step 1: Repouso à @100% SOC para aclimatar à temperatura de teste
+%     Step 2: Descarga à @1C para atingir @90% SOC
+%     Step 3: Executa repetidamente os perfis dinâmicos (e possivelmente
+%             repousos intermediários) até o SOC estar por volta de @10%
+%   Script 2 (câmara térmica ajustada para 25°C):
+%     Step 1: Repouso à @10% SOC para aclimatar à 25°C
+%     Step 2: Descarregue até a tensão mínimca (ca. C/3)
+%     Step 3: Repouso
+%     Step 4: Tensão constante em Vmín (ca. C/30)
+%     Steps 5-7: Aplicar um perfil de corrente oscilatório utilizado em desmagnetização 
+%     para minimizar o efeito da histerese
+%     Step 8: Repouso
+%   Script 3 (câmara térmica ajustada para 25°C):
+%     Step 2: Carrege à @1C para a tensão máxima
+%     Step 3: Repouso
+%     Step 4: Tensão constante em Vmáx (ca. C/30)
+%     Steps 5-7: Aplicar um perfil de corrente oscilatório utilizado em desmagnetização 
+%     para minimizar o efeito da histerese
+%     Step 8: Repouso
+% 
+% Todas as outras etapas (se presentes) são ignoradas por PROCESSDYNAMIC 
+% os passos entre os dados devem ser uniformes, nós assumimos um período de
+% 1 segundo de amostra neste código
+%
+% Entradas:
+% - data: uma array, com uma entrada por temperatura a ser processada. 
+%         uma das entradas da array deve estar a 2°C. Os campos de dados  
+%         são: temp (temperatura de teste), script1, 
+%         script 2 e script 3, onde estes últimos incluem dados
+%         coletados de cada script. Os subcampos desses scripts
+%         são os vetores: 
+%         current, voltage, chgAh e disAh
+% - model: A saída do processoOCV, compreendendo o modelo OCV
+% - numpoles: Número de pares R-C neste modelo
+% - doHyst: 0 se não desejamos um modelo de histerese, 1 se desejamos
+%
+% Saída:
+% - model: Um modelo modificado, que agora contém os campos dinâmicos 
+%          preenchidos.
 
 function model = processDynamic(data,model,numpoles,doHyst)
   global bestcost
   
-  % used by fminbnd later on
-  if exist('optimset.m','file') % part of optimization toolbox
+  % usado por "fminbnd" mais tarde
+  if exist('optimset.m','file') 
     options=optimset('TolX',1e-8,'TolFun',1e-8,'MaxFunEval',100000, ...
-      'MaxIter',1e6,'Jacobian','Off'); % for later optimization
+      'MaxIter',1e6,'Jacobian','Off'); 
   end
     
   % ------------------------------------------------------------------
-  % Step 1: Compute capacity and coulombic efficiency for every test
+  % Step 1: Calcula a capacidade e a eficiência de Coulomb para cada teste
   % ------------------------------------------------------------------
   alltemps = [data(:).temp];
   alletas  = 0*alltemps;
@@ -121,7 +128,7 @@ function model = processDynamic(data,model,numpoles,doHyst)
   end
   
   % ------------------------------------------------------------------
-  % Step 2: Compute OCV for "discharge portion" of test
+  % Step 2: Calcula o OCV para cada "descarga" do teste
   % ------------------------------------------------------------------
   for k = 1:length(data),
     etaParam = model.etaParam(k);
@@ -132,14 +139,14 @@ function model = processDynamic(data,model,numpoles,doHyst)
   end
   
   % ------------------------------------------------------------------
-  % Step 3: Now, optimize!
+  % Step 3: Otimização
   % ------------------------------------------------------------------
-  model.GParam  = NaN(1,numTemps); % "gamma" hysteresis parameter
-  model.M0Param = NaN(1,numTemps); % "M0" hysteresis parameter
-  model.MParam  = NaN(1,numTemps); % "M" hysteresis parameter
-  model.R0Param = NaN(1,numTemps); % "R0" ohmic resistance parameter
-  model.RCParam = NaN(numTemps,numpoles); % time const.
-  model.RParam  = NaN(numTemps,numpoles); % Rk
+  model.GParam  = NaN(1,numTemps); % Parâmetro de histerese "gamma" 
+  model.M0Param = NaN(1,numTemps); % Parâmetro de histerese "M0" 
+  model.MParam  = NaN(1,numTemps); % Parâmetro de histerese "M" 
+  model.R0Param = NaN(1,numTemps); % Parâmetro de resistência "R0" 
+  model.RCParam = NaN(numTemps,numpoles); % Constante de tempo
+  model.RParam  = NaN(numTemps,numpoles); % Parâmetro Rk
 
   for theTemp = 1:numTemps, 
     fprintf('Processing temperature %d\n',model.temps(theTemp));
@@ -170,51 +177,67 @@ function model = processDynamic(data,model,numpoles,doHyst)
 return
 
 % --------------------------------------------------------------------
-% This minfn works for the enhanced self-correcting cell model
+% Este "minfn" funciona para o modelo de célula de autocorreção aprimorado
+% (ESC)
 % --------------------------------------------------------------------
 function cost=optfn(theGParam,data,model,theTemp,doHyst)
   global bestcost 
   
   model.GParam(model.temps == theTemp) = abs(theGParam);
   [cost,model] = minfn(data,model,theTemp,doHyst);
-  if cost<bestcost, % update plot of model params for every improvement
+  if cost<bestcost, % atualize o gráfico dos parâmetros do modelo para cada melhoria
     bestcost = cost;
     disp('Best ESC model values yet!');
     figure(3); theXlim = [min(model.temps) max(model.temps)];
                     plot(model.temps,model.QParam); 
-                    title('Capacity'); 
+                    %title('Capacity'); 
+                    title('Parâmetro Q - Capacidade de energia'); 
                     xlabel('Temperatura (°C)'); ylabel('(Ah)'); 
                     xlim(theXlim);
     figure(4);      plot(model.temps,1000*model.R0Param); 
-                    title('Resistance');
+                    %title('Resistance');
+                    title('Parâmetro R0 - Resistência interna');
                     xlabel('Temperatura (°C)'); ylabel('(m\Omega)'); 
                     xlim(theXlim);
     figure(5);      plot(model.temps,1000*model.M0Param); 
-                    title('Hyst Magnitude M0');
+                    %title('Hyst Magnitude M0');
+                    title('Parâmetro M0 - Histerese');
                     xlabel('Temperatura (°C)'); ylabel('(mV)'); 
                     xlim(theXlim);
     figure(6);      plot(model.temps,1000*model.MParam); 
-                    title('Hyst Magnitude M');
+                    %title('Hyst Magnitude M');
+                    title('Parâmetro M - Histerese');
                     xlabel('Temperatura (°C)'); ylabel('(mV)');
                     xlim(theXlim);
     figure(7);      plot(model.temps,getParamESC('RCParam',...
                     model.temps,model));
-                    title('RC Time Constant');
+                    %title('RC Time Constant');
+                    title('Parâmetro RC - Constante de tempo');
                     xlabel('Temperatura (°C)'); ylabel('(tau)');
                     xlim(theXlim);
     figure(8);      plot(model.temps,1000*getParamESC('RParam',...
                     model.temps,model));
-                    title('R in RC');
+                    %title('R in RC');
+                    title('Parâmetro R - Resistência RC');
                     xlabel('Temperatura (°C)'); ylabel('(m\Omega)');
                     xlim(theXlim);
     figure(9);      plot(model.temps,abs(model.GParam)); 
-                    title('Gamma');  
+                    %title('Gamma');
+                    title('Parâmetro Gamma - Histerese');
+                    xlabel('Temperatura (°C)'); ylabel('');
+                    xlim(theXlim);
+    figure(9);      plot(model.temps,abs(model.etaParam)); 
+                    %title('Gamma');
+                    title('Parâmetro eta - Eficiência de Coulomb');
                     xlabel('Temperatura (°C)'); ylabel('');
                     xlim(theXlim);
   end
 return
 
 % --------------------------------------------------------------------
+% Usando um valor assumido para gama (já armazenado no modelo), encontre
+% os valores ótimos para os da célula restantes e calcule o erro RMS entre
+% a tensão da célula real e a prevista
 % Using an assumed value for gamma (already stored in the model), find 
 % optimum values for remaining cell parameters, and compute the RMS 
 % error between true and predicted cell voltage
@@ -247,28 +270,28 @@ function [cost,model]=minfn(data,model,theTemp,doHyst)
       if abs(ik(k))<Q/100, sik(k) = sik(k-1); end
     end
     
-    % First modeling step: Compute error with model = OCV only
+    % Primeira etapa da modelagem: calcule o erro com o modelo
     vest1 = data(ind(thefile)).OCV;
     verr = vk - vest1;
     
-    % Second modeling step: Compute time constants in "A" matrix
+    % Segunda etapa da modelagem: Calcule a constante de tempo na matriz A
     np = numpoles; 
     while 1,
       A = SISOsubid(-diff(verr),diff(etaik),np);
       eigA = eig(A); 
-      eigA = eigA(eigA == conj(eigA));  % make sure real
-      eigA = eigA(eigA > 0 & eigA < 1); % make sure in range
+      eigA = eigA(eigA == conj(eigA));  % conferindo se real
+      eigA = eigA(eigA > 0 & eigA < 1); % conferindo se no intervalo
       okpoles = length(eigA); np = np+1;
       if okpoles >= numpoles, break; end
       fprintf('Trying np = %d\n',np);
     end    
     RCfact = sort(eigA); RCfact = RCfact(end-numpoles+1:end);
     RC = -1./log(RCfact);
-    % Simulate the R-C filters to find R-C currents
-    if exist('dlsim.m','file') % in the control-system toolbox
+    % Simulando os filtros R-C para encontrar as correntes R-C
+    if exist('dlsim.m','file') % na toolbox "control-system"
       vrcRaw = dlsim(diag(RCfact),1-RCfact,...
                    eye(numpoles),zeros(numpoles,1),etaik);
-    else % a somewhat slower workaround if no control-system toolbox
+    else % uma solução um pouco mais lenta se não houver a toolbox "control-system"
       vrcRaw = zeros(length(RCfact),length(etaik));
       for vrcK = 1:length(etaik)-1,
         vrcRaw(:,vrcK+1) = diag(RCfact)*vrcRaw(:,vrcK)+(1-RCfact)*etaik(vrcK);
@@ -276,10 +299,10 @@ function [cost,model]=minfn(data,model,theTemp,doHyst)
       vrcRaw = vrcRaw';
     end
 
-    % Third modeling step: Hysteresis parameters
+    % Terceira etapa da modelagem: Parâmetros da histerese
     if doHyst,
       H = [h,sik,-etaik,-vrcRaw]; 
-      if exist('lsqnonneg.m','file'), % in optimization toolbox
+      if exist('lsqnonneg.m','file'), % na toolbox "optimization"
         W = lsqnonneg(H,verr); %  W = H\verr;    
       else
         W = nnls(H,verr); %  W = H\verr;    
@@ -300,7 +323,7 @@ function [cost,model]=minfn(data,model,theTemp,doHyst)
     vest2 = vest1 + M*h + M0*sik - R0*etaik - vrcRaw*Rfact';
     verr = vk - vest2;
     
-    % plot voltages: decimate to make faster
+    % Plotando as tensões
     figure(1); subplot(yplots,xplots,thefile); 
     plot(tk(1:10:end)/60,vk(1:10:end),tk(1:10:end)/60,...
          vest1(1:10:end),tk(1:10:end)/60,vest2(1:10:end));  
@@ -309,7 +332,7 @@ function [cost,model]=minfn(data,model,theTemp,doHyst)
                   data(ind(thefile)).temp));
     legend('voltage','vest1 (OCV)','vest2 (DYN)','location','southwest');
 
-    % plot modeling errors: decimate to make faster
+    % Plotando os erros de modelagem
     figure(2); subplot(yplots,xplots,thefile); 
     thetitle=sprintf('Modeling error at T = %d',data(ind(thefile)).temp);
     plot(tk(1:10:end)/60,verr(1:10:end)); title(thetitle);
@@ -317,7 +340,8 @@ function [cost,model]=minfn(data,model,theTemp,doHyst)
     ylim([-0.1 0.1]); 
     drawnow
     
-    % Compute RMS error only on data roughly in 5% to 95% SOC
+    % Calculando o erro RMS apenas em dados com SOC 
+    % aproximadamente de 5% a 95%
     v1 = OCVfromSOCtemp(0.95,data(ind(thefile)).temp,model);
     v2 = OCVfromSOCtemp(0.05,data(ind(thefile)).temp,model);
     N1 = find(vk<v1,1,'first'); N2 = find(vk<v2,1,'first');
@@ -330,103 +354,111 @@ function [cost,model]=minfn(data,model,theTemp,doHyst)
   if isnan(cost), stop, end
 return
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % A = SISOsubid(y,u,n);
-%  Identifies state-space "A" matrix from input-output data.
-%     y: vector of measured outputs
-%     u: vector of measured inputs 
-%     n: number of poles in solution
+%  Identifica a matriz estado de espaço A dos dados de entrada e saída.
+%     y: vetor de saídas medidas
+%     u: vetor de entradas medidas
+%     n: número de pólos na solução
 %           
-%     A: discrete-time state-space state-transition matrix.
-%                 
-%  Theory from "Subspace Identification for Linear Systems
+%     A: matriz de transição de estado de espaço em tempo discreto
+%
+%  A teoria desta aplicação foi retirada do:                 
+%               "Subspace Identification for Linear Systems
 %               Theory - Implementation - Applications" 
 %               Peter Van Overschee / Bart De Moor (VODM)
 %               Kluwer Academic Publishers, 1996
 %               Combined algorithm: Figure 4.8 page 131 (robust)
-%               Robust implementation: Figure 6.1 page 169
+%               Robust implementation: Figure 6.1 page 169"
 %
-%  Code adapted from "subid.m" in "Subspace Identification for 
+%  E o código adaptado do "subid.m" do:
+%               "Subspace Identification for 
 %               Linear Systems" toolbox on MATLAB CENTRAL file 
-%               exchange, originally by Peter Van Overschee, Dec. 1995
+%               exchange, originally by Peter Van Overschee, Dec. 1995"
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 function A = SISOsubid(y,u,n)
-  y = y(:); y = y'; ny = length(y); % turn y into row vector
-  u = u(:); u = u'; nu = length(u); % turn u into row vector
-  i = 2*n; % #rows in Hankel matrices. Typically: i = 2 * (max order)
+  y = y(:); y = y'; ny = length(y); % transformando y em um vetor linha
+  u = u(:); u = u'; nu = length(u); % transformando u em um vetor linha
+  i = 2*n; % #linhas na matriz de Hankel. Usualmente: i=2*(ordem máxima)
   twoi = 4*n;           
 
   if ny ~= nu, error('y and u must be same size'); end
   if ((ny-twoi+1) < twoi); error('Not enough data points'); end
 
   % Determine the number of columns in the Hankel matrices
+  % Determinando o número de colunas da matriz de Hankel
   j = ny-twoi+1;
 
-  % Make Hankel matrices Y and U
+  % Fazendo as matrizes de Hankel Y e U
   Y=zeros(twoi,j); U=zeros(twoi,j);
   for k=1:2*i
     Y(k,:)=y(k:k+j-1); U(k,:)=u(k:k+j-1);
   end
-  % Compute the R factor
-  R = triu(qr([U;Y]'))'; % R factor
-  R = R(1:4*i,1:4*i); 	 % Truncate
+  % Calculando o fator R
+  R = triu(qr([U;Y]'))'; % fator R
+  R = R(1:4*i,1:4*i); 	
 
   % ------------------------------------------------------------------
-  % STEP 1: Calculate oblique and orthogonal projections
+  % STEP 1: Calcular projeções oblíquas e ortogonais
   % ------------------------------------------------------------------
-  Rf = R(3*i+1:4*i,:);              % Future outputs
-  Rp = [R(1:1*i,:);R(2*i+1:3*i,:)]; % Past inputs and outputs
-  Ru  = R(1*i+1:2*i,1:twoi); 	      % Future inputs
-  % Perpendicular future outputs 
+  Rf = R(3*i+1:4*i,:);              % saídas futuras
+  Rp = [R(1:1*i,:);R(2*i+1:3*i,:)]; % entradas e saídas anteriores
+  Ru  = R(1*i+1:2*i,1:twoi); 	      % saídas futuras
+  % Saídas futuras perpendiculares
   Rfp = [Rf(:,1:twoi) - (Rf(:,1:twoi)/Ru)*Ru,Rf(:,twoi+1:4*i)]; 
-  % Perpendicular past inputs and outputs
+  % Entradas e saídas perpendiculares anteriores
   Rpp = [Rp(:,1:twoi) - (Rp(:,1:twoi)/Ru)*Ru,Rp(:,twoi+1:4*i)]; 
-
-  % The oblique projection is computed as (6.1) in VODM, page 166.
+  
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % A projeção oblíqua é calculada como (6.1) em VODM, página 166.
   % obl/Ufp = Yf/Ufp * pinv(Wp/Ufp) * (Wp/Ufp)
-  % The extra projection on Ufp (Uf perpendicular) tends to give 
-  % better numerical conditioning (see algo on VODM page 131)
-
-  % Funny rank check (SVD takes too long)
-  % This check is needed to avoid rank deficiency warnings
+  % A projeção extra em Ufp (Uf perpendicular) tende a dar um 
+  % melhor condicionamento numérico (ver algo em VODM página 131)
+  % Esta verificação é necessária para evitar avisos de deficiência 
+  % de classificação
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
   if (norm(Rpp(:,3*i-2:3*i),'fro')) < 1e-10
-    Ob = (Rfp*pinv(Rpp')')*Rp; 	% Oblique projection
+    Ob = (Rfp*pinv(Rpp')')*Rp; 	% Projeção oblíqua
   else
     Ob = (Rfp/Rpp)*Rp;
   end
 
   % ------------------------------------------------------------------
-  % STEP 2: Compute weighted oblique projection and its SVD
-  %         Extra projection of Ob on Uf perpendicular
+  % STEP 2: Calculando a projeção obliqua ponderada e suaa projeção 
+  %         SVD extra de 0b na Uf perpendicular
   % ------------------------------------------------------------------
   WOW = [Ob(:,1:twoi) - (Ob(:,1:twoi)/Ru)*Ru,Ob(:,twoi+1:4*i)];
   [U,S,~] = svd(WOW);
   ss = diag(S);
 
   % ------------------------------------------------------------------
-  % STEP 3: Partitioning U into U1 and U2 (the latter is not used)
+  % STEP 3: Particionando U em U1 e U2 (o último não é usado)
   % ------------------------------------------------------------------
   U1 = U(:,1:n); % Determine U1
 
   % ------------------------------------------------------------------
-  % STEP 4: Determine gam = Gamma(i) and gamm = Gamma(i-1) 
+  % STEP 4: Determine gam = Gamma(i) e gamm = Gamma(i-1) 
   % ------------------------------------------------------------------
   gam  = U1*diag(sqrt(ss(1:n)));
   gamm = gam(1:(i-1),:);
-  gam_inv  = pinv(gam); 			% Pseudo inverse of gam
-  gamm_inv = pinv(gamm); 			% Pseudo inverse of gamm
+  gam_inv  = pinv(gam); 			% Pseudo inverso de gam
+  gamm_inv = pinv(gamm); 			% Pseudo inverso de gamm
 
   % ------------------------------------------------------------------
-  % STEP 5: Determine A matrix (also C, which is not used) 
+  % STEP 5: Determine a matriz A (também C, que não é usada) 
   % ------------------------------------------------------------------
   Rhs = [gam_inv*R(3*i+1:4*i,1:3*i),zeros(n,1); R(i+1:twoi,1:3*i+1)];
   Lhs = [gamm_inv*R(3*i+1+1:4*i,1:3*i+1); R(3*i+1:3*i+1,1:3*i+1)];
-  sol = Lhs/Rhs;    % Solve least squares for [A;C]
-  A = sol(1:n,1:n); % Extract A
+  sol = Lhs/Rhs;    % Resolve o mínimo quadrado para [A;C]
+  A = sol(1:n,1:n); % Extrai A
 return
 
 function X = gss(f,a,b,tol)
-  % golden section search to find the minimum of f on [a,b]
-  % based on code: https://en.wikipedia.org/wiki/Golden-section_search
-  gr = (sqrt(5)+1)/2; % golden ratio used in search
+  % pesquisa para encontrar o mínimo de f em [a, b]
+  % baseada no código: https://en.wikipedia.org/wiki/Golden-section_search
+  gr = (sqrt(5)+1)/2; % "golden ratio" usado na pesquisa
 
   c = b - (b - a) / gr;
   d = a + (b - a) / gr;
@@ -436,9 +468,9 @@ function X = gss(f,a,b,tol)
     else
       a = c;
     end
-
-    % we recompute both c and d here to avoid loss of precision which 
-    % may lead to incorrect results or infinite loop
+    
+    % recalculamos c e d aqui para evitar perda de precisão o que 
+    % pode levar a resultados incorretor ou loop infinito
     c = b - (b - a) / gr;
     d = a + (b - a) / gr;
   end
@@ -446,51 +478,58 @@ function X = gss(f,a,b,tol)
 return
 
 function [x,w,info]=nnls(C,d,opts)
-  % nnls  Non negative least squares Cx=d x>=0 w=C'(d-Cx)<=0
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %  Direitos autorais desta parte do código
+  %  "nnls"  Mínimos quadrados não negativos Cx=d x>=0 w=C'(d-Cx)<=0
   %  2012-08-21  Matlab8  W.Whiten
   %  2013-02-17  Line 52 added
   %  Copyright (C) 2012, W.Whiten (personal W.Whiten@uq.edu.au) BSD license
   %  (http://opensource.org/licenses/BSD-3-Clause)
   %
   % [x,w,info]=nnls(C,d,opts)
-  %  C    Coefficient matrix
-  %  d    Rhs vector
-  %  opts Struct containing options: (optional)
-  %        .Accy  0 fast version, 1 refines final value (default), 
-  %                 2 uses accurate steps but very slow on large cases, 
-  %                 faster on small cases, result usually identical to 1
-  %        .Order True or [], or order to initially include positive terms
-  %                 if included will supply info.Order, if x0 available use 
-  %                 find(x0>0), but best saved from previous run of nnls
-  %        .Tol   Tolerance test value, default zero, use multiple of eps
-  %        .Iter  Maximum number of iterations, should not be needed.
+  %  C    Coeficiente da matriz
+  %  d    Vetor Rhs
+  %  "opts" Opções da estrutura: (opcional)
+  %        .Accy  0 versão rápida, 1 refina o valor final (padrão), 
+  %                 2 usa passos precisos, mas é muito lenta em casos
+  %                 grandes, rápida em casos pequenos, resultado geralmente
+  %                 identico ao 1
+  %        .Order Verdadeiro ou [], ou ordem para incluir inicialmente 
+  %                 termos positivos se incluído fornecerá informações. 
+  %                 Se x0 disponível use find(x0>0), mas é melhor salvar 
+  %                 da execução anterior de nnls
+  %        .Tol   Valor do teste de tolerância, padrão é zero
+  %        .Iter  Número máximo de interações, não deve ser necessário.
   %
-  %  x    Positive solution vector x>=0
-  %  w    Lagrange multiplier vector w(x==0)<= approx zero
-  %  info Struct with extra information: 
-  %        .iter  Number of iterations used
-  %        .wsc0  Estimated size of errors in w
-  %        .wsc   Maximum of test values for w
-  %        .Order Order variables used, use to restart nnls with opts.Order
+  %  x    Vetor de solução positiva x>=0
+  %  w    Vetor multiplicador de Lagrange w(x==0)<= aproximadamente zero
+  %  Informação extra da estrutura: 
+  %        .iter  Número de interações usadas
+  %        .wsc0  Tamanho estimado de erros em w
+  %        .wsc   Máximo de valores de teste para w
+  %        .Order Variáveis de pedido usadas, use para reiniciar "nnls"
+  %                com "opts.Order"
   %
-  % Exits with x>=0 and w<= zero or slightly above 0 due to
-  %  rounding and to ensure for convergence
-  % Using faster matrix operations then refines answer as default (Accy 1).
-  % Accy 0 is more robust in singular cases.
+  % Existe com x>=0 e w<= zero ou ligeiramente acima de 0 devido ao 
+  % arredondamento e para garantir a convergência
+  % Usando operações matriciais mais rápidas, refina a resposta 
+  % como padrão (Accy 1).
+  % Accy 0 é mais robusto em casos singulares.
   %
   % Follows Lawson & Hanson, Solving Least Squares Problems, Ch 23.
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
   [~,n]=size(C);
   maxiter=4*n;
 
-  % inital values
+  % valores iniciais
   P=false(n,1);
   x=zeros(n,1);
   z=x;
 
   w=C'*d;
 
-  % wsc_ are scales for errors
+  % wsc_ são escalas para erros
   wsc0=sqrt(sum(w.^2));
   wsc=zeros(n,1);
   tol=3*eps;
@@ -499,7 +538,7 @@ function [x,w,info]=nnls(C,d,opts)
   pn2=0;
   pn=zeros(1,n);
 
-  % see if option values have been given
+  % veja se os valores das opções foram dados
   ind=true;
   if(nargin>2)
     if(isfield(opts,'Tol'))
@@ -514,7 +553,7 @@ function [x,w,info]=nnls(C,d,opts)
     end
   end
 
-  % test if to use normal matrix for speed
+  % testa se usa a matriz normal para velocidade
   if(accy<2)
     A=C'*C;
     b=C'*d;
@@ -524,7 +563,7 @@ function [x,w,info]=nnls(C,d,opts)
     uptri=struct('UT',true);
   end
 
-  % test if initial information given
+  % testa se informações iniciais fornecidas
   if(nargin>2)
     if(isfield(opts,'Order') && ~islogical(opts.Order))
       pn1=length(opts.Order);
@@ -540,10 +579,10 @@ function [x,w,info]=nnls(C,d,opts)
     pn2=pn1;
   end
 
-  % loop until all positive variables added
+  % loop até que todas as variáveis possitivas sejam adicionadas
   iter=0;
   while(true)
-    % Check if no more terms to be added
+    % Verifica se não tem mais termos a serem adicionados
     if(ind && (all(P==true) || all(w(~P)<=wsc(~P))))
       if(accy~=1)
         break
@@ -551,10 +590,10 @@ function [x,w,info]=nnls(C,d,opts)
       accy=2;
       ind=false;
     end
-
-    % skip if first time and initial Order given
+    
+    % pula se primeira vez e ordem inicial foram dadas
     if(ind)
-      % select best term to add
+      % seleciona o melhor termo para adicionar
       ind1=find(~P);
       [~,ind2]=max(w(ind1)-wsc(ind1));
       ind1=ind1(ind2);
@@ -563,10 +602,10 @@ function [x,w,info]=nnls(C,d,opts)
       pn(pn2)=ind1;
     end
 
-    % loop until all negative terms are removed
+    % loop até que todos os termos negativos sejam removidos
     while(true)
 
-      % check for divergence
+      % verifica a divergência
       iter=iter+1;
       if(iter>=2*n)
         if(iter>maxiter)
@@ -577,12 +616,12 @@ function [x,w,info]=nnls(C,d,opts)
         end
       end
 
-      % solve using suspected positive terms
+      % resolver usando "suspected positive terms"
       z(:)=0;
       if(accy>=2)
         z(P)=C(:,P)\d;
       else
-        % add row to the lower triangular factor
+        % adicionar uma linha ao fator triangular inferior  
         for i=pn1+1:pn2
           i1=i-1;
           %LL=L(1:i1,1:i1);
@@ -604,7 +643,7 @@ function [x,w,info]=nnls(C,d,opts)
           UU(1:i,i)=[t;tt];
         end
 
-        % solve using lower triangular factor
+        % resolver usando o fator triangular inferior
         %LL=L(1:pn2,1:pn2);
         t=linsolve(LL,b(pn(1:pn2)),lowtri);
         %t=LL\b(pn(1:pn2));
@@ -612,12 +651,12 @@ function [x,w,info]=nnls(C,d,opts)
         %z(pn(1:pn2))=linsolve(UU,t,uptri);
         z(pn(1:pn2))=linsolve(UU,t,uptri);
         %z(pn(1:pn2))=LL'\t;
-        % or could use this to solve without updating factors
+        % ou podemos usar isso para resolver sem atualizar os fatores
         %z(pn(1:pn2))=A(pn(1:pn2),pn(1:pn2))\b(pn(1:pn2));
       end
       pn1=pn2;
 
-      % check terms are positive
+      % checando se os termos são positivos
       if(all(z(P)>=0))
         x=z;
         if(accy<2)
@@ -630,12 +669,13 @@ function [x,w,info]=nnls(C,d,opts)
         break
       end
 
-      % select and remove worst negative term
+      % seleciona e remove o pior termo negativo
       ind1=find(z<0);
       [alpha,ind2]=min(x(ind1)./(x(ind1)-z(ind1)+realmin));
       ind1=ind1(ind2);
 
-      % test if removing last added, increase wsc to avoid loop
+      % testa se removendo o último adicionado, aumenta "wsc" para evitar
+      % loop
       if(x(ind1)==0 && ind)
         w=C'*(d-C*z);
         wsc(ind1)=(abs(w(ind1))+wsc(ind1))*2;
@@ -654,7 +694,7 @@ function [x,w,info]=nnls(C,d,opts)
     end
   end
 
-  % info result required
+  % resultado de informação necessário
   if(nargout>2)
     info.iter=iter;
     info.wsc0=wsc0*eps;
